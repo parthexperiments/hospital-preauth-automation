@@ -1,0 +1,1825 @@
+{
+  "name": "Hospital Pre-Auth - Document Flow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "preauth-trigger",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "fc76ab2a-97ab-42e2-9430-0340b1c36f6a",
+      "name": "Admission Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        -128
+      ],
+      "webhookId": "preauth-trigger"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Received",
+        "options": {}
+      },
+      "id": "ca72fdd3-1f9b-4bea-a455-8374ebf1e36b",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR-API-KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-haiku-4-5-20251001\",\n  \"max_tokens\": 1024,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"You are a medical coding assistant. Extract structured information from the following clinical notes and return ONLY a valid JSON object with no extra text, markdown, or explanation.\\n\\nDiagnosis notes: {{ $json.body.diagnosis_raw }}\\nProcedure notes: {{ $json.body.procedure_raw }}\\n\\nReturn this exact JSON structure:\\n{\\n  \\\"icd_code\\\": \\\"<ICD-10 code>\\\",\\n  \\\"procedure_code\\\": \\\"<CPT or procedure code>\\\",\\n  \\\"clinical_justification\\\": \\\"<2-3 sentence clinical justification for pre-authorization>\\\"\\n}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "2c9e84e4-87ce-47f0-8119-dda35193a82c",
+      "name": "Claude - Extract ICD Codes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -16,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $input.item.json.content[0].text;\nlet parsed;\ntry {\n  // Strip markdown code blocks if present\n  const clean = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(clean);\n} catch(e) {\n  parsed = {\n    icd_code: 'PARSE_ERROR',\n    procedure_code: 'PARSE_ERROR',\n    clinical_justification: content\n  };\n}\n\nconst admissionData = $('Admission Webhook Trigger').item.json.body;\n\nreturn {\n  patient_name: admissionData.patient_name,\n  age: admissionData.age,\n  policy_number: admissionData.policy_number,\n  tpa: admissionData.tpa,\n  procedure_raw: admissionData.procedure_raw,\n  diagnosis_raw: admissionData.diagnosis_raw,\n  icd_code: parsed.icd_code,\n  procedure_code: parsed.procedure_code,\n  clinical_justification: parsed.clinical_justification,\n  status: 'Pending Review',\n  claim_id: '',\n  tpa_response: '',\n  draft_response: ''\n};"
+      },
+      "id": "25b45f62-2fe2-4a90-84be-139a479722a7",
+      "name": "Parse Claude Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "patient_name": "={{ $json.patient_name }}",
+            "age": "={{ $json.age }}",
+            "policy_number": "={{ $json.policy_number }}",
+            "tpa": "={{ $json.tpa }}",
+            "procedure_raw": "={{ $json.procedure_raw }}",
+            "diagnosis_raw": "={{ $json.diagnosis_raw }}",
+            "icd_code": "={{ $json.icd_code }}",
+            "procedure_code": "={{ $json.procedure_code }}",
+            "clinical_justification": "={{ $json.clinical_justification }}",
+            "status": "={{ $json.status }}",
+            "claim_id": "={{ $json.claim_id }}",
+            "tpa_response": "={{ $json.tpa_response }}",
+            "draft_response": "={{ $json.draft_response }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "age",
+              "displayName": "age",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "policy_number",
+              "displayName": "policy_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tpa",
+              "displayName": "tpa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "procedure_raw",
+              "displayName": "procedure_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "diagnosis_raw",
+              "displayName": "diagnosis_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "icd_code",
+              "displayName": "icd_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "procedure_code",
+              "displayName": "procedure_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "clinical_justification",
+              "displayName": "clinical_justification",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "claim_id",
+              "displayName": "claim_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tpa_response",
+              "displayName": "tpa_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "draft_response",
+              "displayName": "draft_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "f75fe6c4-0d0d-44c9-9ffe-b18be4213c84",
+      "name": "Write to GSheet - Pending Review",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        432,
+        -128
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "preauth-approved",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "fe49b5cb-3f1a-4a70-a58c-6905d6b2ba90",
+      "name": "Approval Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        496
+      ],
+      "webhookId": "preauth-approved"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Approval received",
+        "options": {}
+      },
+      "id": "b9dc2c3c-f2db-4d1b-ba94-27e94072cb5b",
+      "name": "Respond to Approval",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.item.json;\n\nconst mockPolicyCheck = {\n  policy_active: true,\n  sum_insured_remaining: 485000,\n  procedure_covered: true,\n  waiting_period_applicable: false,\n  room_rent_limit: 2000,\n  exclusions: []\n};\n\nconst documentChecklist = {\n  required: [\n    { document: 'Doctor admission note', status: 'Available in HMS' },\n    { document: 'ECG Report', status: 'Pending from Lab' },\n    { document: 'Blood reports - CBC, lipid profile', status: 'Pending from Lab' },\n    { document: 'Cardiologist referral note', status: 'Pending from Doctor' }\n  ]\n};\n\nconst claimId = 'NHCX-2024-' + Math.floor(Math.random() * 900000 + 100000);\nconst tpaQuery = 'Please provide ECG report from last 3 months and previous cardiac history to justify coronary angiography procedure.';\n\nreturn {\n  ...data,\n  policy_check: mockPolicyCheck,\n  document_checklist: documentChecklist,\n  claim_id: claimId,\n  tpa_query: tpaQuery\n};"
+      },
+      "id": "3d611a9c-e27f-4102-8bd3-667249515bfc",
+      "name": "Mock Policy Check + NHCX Submit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR-API-KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-haiku-4-5-20251001\",\n  \"max_tokens\": 1024,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"You are a hospital insurance coordinator. Draft a response to this TPA query.\\n\\nPatient: {{ $json.patient_name }}\\nAge: {{ $json.age }}\\nDiagnosis: {{ $json.diagnosis_raw }}\\nProcedure: {{ $json.procedure_raw }}\\nICD Code: {{ $json.icd_code }}\\nClinical Justification: {{ $json.clinical_justification }}\\nTPA Query: {{ $json.tpa_query }}\\n\\nWrite exactly 3 sentences. Start with: In response to your query regarding. State documents will follow shortly. Reinforce clinical urgency. No timelines. No thank you. No headers. Return only response text.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "af8ecb0d-c5ab-4719-a82e-8e75ffc6f943",
+      "name": "Claude - Draft Query Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        512,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const claudeResponse = $input.item.json.content[0].text;\nconst prevData = $('Mock Policy Check + NHCX Submit').item.json;\n\nreturn {\n  claim_id: prevData.claim_id,\n  tpa_response: prevData.tpa_query,\n  draft_response: claudeResponse,\n  row_number: prevData.body?.row_number ?? prevData.row_number,\n  policy_number: prevData.body?.policy_number ?? prevData.policy_number\n};"
+      },
+      "id": "50a02fa9-a8f5-4461-b828-721cdb684457",
+      "name": "Parse Query Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "tpa_response": "={{ $json.tpa_response }}",
+            "draft_response": "={{ $json.draft_response }}",
+            "status": "=Queried - Draft Ready",
+            "claim_id": "={{ $json.claim_id }}",
+            "policy_number": "={{ $json.policy_number }}"
+          },
+          "matchingColumns": [
+            "policy_number"
+          ],
+          "schema": [
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "age",
+              "displayName": "age",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "policy_number",
+              "displayName": "policy_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tpa",
+              "displayName": "tpa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "procedure_raw",
+              "displayName": "procedure_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "diagnosis_raw",
+              "displayName": "diagnosis_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "icd_code",
+              "displayName": "icd_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "procedure_code",
+              "displayName": "procedure_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "clinical_justification",
+              "displayName": "clinical_justification",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "claim_id",
+              "displayName": "claim_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tpa_response",
+              "displayName": "tpa_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "draft_response",
+              "displayName": "draft_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "6d97fb52-f4a6-413c-b855-00646e149f8d",
+      "name": "Update GSheet - Claim + Draft",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        1056,
+        416
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        784,
+        48
+      ],
+      "id": "91991fbd-abe7-48d0-bcdb-ec9d667feade",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://parthexperiments.app.n8n.cloud/webhook/preauth-trigger",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"patient_name\": \"Rajesh Sharma\",\n  \"age\": 54,\n  \"policy_number\": \"SH-123456\",\n  \"tpa\": \"Star Health\",\n  \"procedure_raw\": \"Coronary Angiography\",\n  \"diagnosis_raw\": \"Patient presented with chest pain, history of hypertension and diabetes, ECG showing ST changes, planned for coronary angiography\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        992,
+        48
+      ],
+      "id": "f064bb35-9dee-40c1-81c7-9f94da7745f7",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Receives claim data from existing workflow\n// This node is triggered by connecting from Mock Policy Check + NHCX Submit\nconst data = $input.item.json;\n\nreturn {\n  claim_id: data.claim_id,\n  patient_name: data.patient_name || data.body?.patient_name,\n  tpa: data.tpa || data.body?.tpa,\n  documents: [\n    {\n      document_name: 'ECG Report',\n      status: 'Uploaded',\n      drive_link: 'https://drive.google.com/file/d/1_mmZ4siPc77gREdDoO2UBjmuJdWypcDV/view',\n      file_id: '1_mmZ4siPc77gREdDoO2UBjmuJdWypcDV',\n      response_sent: ''\n    },\n    {\n      document_name: 'Blood Report',\n      status: 'Uploaded',\n      drive_link: 'https://drive.google.com/file/d/1R90XfMA4I6mxP4E-9OdGGUyiqXwMtx8c/view',\n      file_id: '1R90XfMA4I6mxP4E-9OdGGUyiqXwMtx8c',\n      response_sent: ''\n    },\n    {\n      document_name: 'Referral Letter',\n      status: 'Uploaded',\n      drive_link: 'https://drive.google.com/file/d/1MxpXlb8ObiL2lnKYsPs_VD_sPa_DOJ3N/view',\n      file_id: '1MxpXlb8ObiL2lnKYsPs_VD_sPa_DOJ3N',\n      response_sent: ''\n    },\n    {\n      document_name: 'Cardiac History',\n      status: 'Pending',\n      drive_link: '',\n      file_id: '',\n      response_sent: ''\n    }\n  ]\n};"
+      },
+      "id": "67afa1c7-847d-48d9-a6ef-2b4f60c1e7ff",
+      "name": "Prepare Checklist Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "documentId": {
+          "__rl": true,
+          "value": "1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI",
+          "mode": "id"
+        },
+        "title": "={{ $json.claim_id }}",
+        "options": {}
+      },
+      "id": "aa2cfea0-f69d-4a0a-97a6-376bbaae61c8",
+      "name": "Create Checklist Tab",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        1232,
+        736
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $('Prepare Checklist Data').item.json.claim_id }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "3fbcb332-d0a8-426a-95fe-15851f7970ba",
+      "name": "Write Document Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        2544,
+        624
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst documents = $('Prepare Checklist Data').item.json.documents;\nreturn documents.map(doc => ({ json: doc }));"
+      },
+      "id": "fce37930-d361-4d9e-8783-0fcb4d9d78a3",
+      "name": "Split Document Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "Awaiting Documents",
+            "claim_id": "={{ $('Prepare Checklist Data').item.json.claim_id }}",
+            "row_number": 0
+          },
+          "matchingColumns": [
+            "claim_id"
+          ],
+          "schema": [
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "age",
+              "displayName": "age",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "policy_number",
+              "displayName": "policy_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "tpa",
+              "displayName": "tpa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "procedure_raw",
+              "displayName": "procedure_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "diagnosis_raw",
+              "displayName": "diagnosis_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "icd_code",
+              "displayName": "icd_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "procedure_code",
+              "displayName": "procedure_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "clinical_justification",
+              "displayName": "clinical_justification",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "claim_id",
+              "displayName": "claim_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tpa_response",
+              "displayName": "tpa_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "draft_response",
+              "displayName": "draft_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "905076fa-2629-4bfd-a1ef-cb0d13e83b20",
+      "name": "Update Sheet1 Awaiting Docs",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        2192,
+        832
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "document-send",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "13eff3cb-5fc3-451e-9bda-1ecb122e5ad3",
+      "name": "Document Send Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1712,
+        96
+      ],
+      "webhookId": "document-send"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Document send received",
+        "options": {}
+      },
+      "id": "0354e338-abe0-416e-8d78-709ed2b0dfb3",
+      "name": "Respond to Document Send",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1984,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter only uploaded docs with drive links and not yet sent\nconst incoming = $input.item.json.body;\nconst rows = incoming.documents || [];\n\nconst toSend = rows.filter(r => \n  r.status === 'Uploaded' && \n  r.drive_link !== '' && \n  r.response_sent === ''\n);\n\nconst pending = rows.filter(r => \n  r.status === 'Pending' || r.drive_link === ''\n);\n\nreturn {\n  claim_id: incoming.claim_id,\n  patient_name: incoming.patient_name,\n  tpa: incoming.tpa,\n  diagnosis_raw: incoming.diagnosis_raw,\n  procedure_raw: incoming.procedure_raw,\n  icd_code: incoming.icd_code,\n  clinical_justification: incoming.clinical_justification,\n  tpa_query: incoming.tpa_query,\n  to_send: toSend,\n  pending: pending\n};"
+      },
+      "id": "9a0c5e0a-0aa0-42a4-a679-7a9a4531617b",
+      "name": "Filter Available Documents",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "to_send",
+        "options": {}
+      },
+      "id": "41fca106-6be5-4dd6-8a3e-94b3599fdd5c",
+      "name": "Split Documents to Fetch",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        2304,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.file_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "e33854b0-d964-42ff-9319-c364686781e6",
+      "name": "Fetch Drive File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2576,
+        192
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "0XUd3MdfOwNeRcDq",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const binaryKey = Object.keys($input.item.binary)[0];\nconst binary = $input.item.binary[binaryKey];\n\nreturn {\n  document_name: $input.item.json.document_name,\n  drive_link: $input.item.json.drive_link,\n  file_id: $input.item.json.file_id,\n  base64: binary.data,\n  mime_type: binary.mimeType,\n  file_name: binary.fileName,\n  content_type: 'application/pdf'\n};"
+      },
+      "id": "315f8a7d-a71e-4e7f-b0a5-acb747f4bc94",
+      "name": "Convert to Base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "9600f561-b7ca-4f5d-8972-8578e0c57242",
+      "name": "Aggregate Documents",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        3136,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const docs = $input.item.json.data;\nconst filterData = $('Filter Available Documents').item.json;\n\nconst attachedList = docs.map(d => d.document_name).join(', ');\nconst pendingList = filterData.pending.map(d => d.document_name).join(', ');\n\nreturn {\n  claim_id: filterData.claim_id,\n  patient_name: filterData.patient_name,\n  tpa: filterData.tpa,\n  diagnosis_raw: filterData.diagnosis_raw,\n  procedure_raw: filterData.procedure_raw,\n  icd_code: filterData.icd_code,\n  clinical_justification: filterData.clinical_justification,\n  tpa_query: filterData.tpa_query,\n  attached_list: attachedList,\n  pending_list: pendingList,\n  documents: docs\n};"
+      },
+      "id": "fc81a022-422f-4cae-b54e-6d416c2d7141",
+      "name": "Prepare Claude Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3424,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR-API-KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-haiku-4-5-20251001\",\n  \"max_tokens\": 1024,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"You are a hospital insurance coordinator drafting a response to a TPA query.\\n\\nPatient: {{ $json.patient_name }}\\nAge: {{ $json.age }}\\nDiagnosis: {{ $json.diagnosis_raw }}\\nProcedure: {{ $json.procedure_raw }}\\nICD Code: {{ $json.icd_code }}\\nClinical Justification: {{ $json.clinical_justification }}\\nTPA Query: {{ $json.tpa_query }}\\nDocuments attached: {{ $json.attached_list }}\\nDocuments pending: {{ $json.pending_list }}\\n\\nWrite 3-4 sentences. Acknowledge the query. State which documents are attached. Mention pending documents will follow shortly. Reinforce clinical necessity. Never mention timeframes. Never say thank you for reviewing. No headers. No hashtags. Return only response text.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "d7b6ee9b-b77c-4326-8b3e-5bd0a19524a2",
+      "name": "Claude - Draft Document Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3632,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const claudeResponse = $input.item.json.content[0].text;\nconst prevData = $('Prepare Claude Context').item.json;\n\n// Build mock FHIR bundle with base64 documents\nconst fhirBundle = {\n  resourceType: 'Bundle',\n  type: 'collection',\n  entry: prevData.documents.map(doc => ({\n    resource: {\n      resourceType: 'DocumentReference',\n      status: 'current',\n      type: {\n        coding: [{\n          display: doc.document_name\n        }]\n      },\n      content: [{\n        attachment: {\n          contentType: 'application/pdf',\n          data: doc.base64.substring(0, 50) + '... [truncated for mock]',\n          title: doc.document_name + '.pdf'\n        }\n      }]\n    }\n  }))\n};\n\nreturn {\n  claim_id: prevData.claim_id,\n  patient_name: prevData.patient_name,\n  draft_response: claudeResponse,\n  fhir_bundle: fhirBundle,\n  documents_sent: prevData.documents.map(d => d.document_name),\n  documents_pending: prevData.pending_list\n};"
+      },
+      "id": "b31ba950-f433-46e9-99eb-f6260697362d",
+      "name": "Build FHIR Bundle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3824,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $('Build FHIR Bundle').item.json.claim_id }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "action": "~",
+            "tq": "123"
+          },
+          "matchingColumns": [
+            "tq"
+          ],
+          "schema": [
+            {
+              "id": "claim_id",
+              "displayName": "claim_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "document_name",
+              "displayName": "document_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "drive_link",
+              "displayName": "drive_link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tq",
+              "displayName": "tq",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response_sent",
+              "displayName": "response_sent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "41598779-2d4e-4374-a9a0-f755114019bc",
+      "name": "Reset Action + Mark Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        3952,
+        -144
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "Response Sent",
+            "draft_response": "={{ $('Build FHIR Bundle').item.json.draft_response }}",
+            "claim_id": "={{ $('Build FHIR Bundle').item.json.claim_id }}",
+            "row_number": 0
+          },
+          "matchingColumns": [
+            "claim_id"
+          ],
+          "schema": [
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "age",
+              "displayName": "age",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "policy_number",
+              "displayName": "policy_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tpa",
+              "displayName": "tpa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "procedure_raw",
+              "displayName": "procedure_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "diagnosis_raw",
+              "displayName": "diagnosis_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "icd_code",
+              "displayName": "icd_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "procedure_code",
+              "displayName": "procedure_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "clinical_justification",
+              "displayName": "clinical_justification",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "claim_id",
+              "displayName": "claim_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tpa_response",
+              "displayName": "tpa_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "draft_response",
+              "displayName": "draft_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "9cc786ee-0eac-4399-8a06-181b6957e4d5",
+      "name": "Update Sheet1 Response Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        4864,
+        176
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI/values/{{ encodeURIComponent($('Prepare Checklist Data').item.json.claim_id) }}:append?valueInputOption=RAW",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"values\": [\n    [\"claim_id\", \"patient_name\", \"document_name\", \"status\", \"drive_link\", \"action\", \"tq\", \"response_sent\"],\n    [\"{{ $('Prepare Checklist Data').item.json.claim_id }}\", \"{{ $('Prepare Checklist Data').item.json.patient_name }}\", \"SEND DOCUMENTS\", \"\", \"\", \"Pending\", \"123\", \"\"]\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1504,
+        576
+      ],
+      "id": "6084bdef-537f-42cb-b608-6d7f4906a7be",
+      "name": "HTTP Request1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI/values/{{ encodeURIComponent($('Prepare Checklist Data').item.json.claim_id) }}:append?valueInputOption=RAW",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"values\": [[\"{{ $('Prepare Checklist Data').item.json.claim_id }}\", \"{{ $('Prepare Checklist Data').item.json.patient_name }}\", \"{{ $json.document_name }}\", \"{{ $json.status }}\", \"{{ $json.drive_link }}\", \"\", \"\", \"\"]]}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2176,
+        1264
+      ],
+      "id": "bd797d0a-ce14-4744-9fd7-d0489381e333",
+      "name": "HTTP Request2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1600,
+        1488
+      ],
+      "id": "f3cc3b7e-a16e-4013-b772-5913b1d8942f",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "const filterData = $('Filter Available Documents').item.json;\nconst claimId = $('Build FHIR Bundle').item.json.claim_id;\n\nconst sentDocs = filterData.to_send.map(doc => ({\n  document_name: doc.document_name,\n  claim_id: claimId\n}));\n\nreturn { json: { claim_id: claimId, sent_docs: sentDocs } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4160,
+        -160
+      ],
+      "id": "125f34e8-bf10-4271-b495-8088adbd8d49",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"valueInputOption\": \"RAW\",\n  \"data\": {{ JSON.stringify($json.updates) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4784,
+        -160
+      ],
+      "id": "dda5759e-f1f6-49ef-a8d1-e84097230a35",
+      "name": "HTTP Request3",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/1aHaqcaB6hi9JjSyeDLTjRn4LlK9hXp32BcRBadZ0TyI/values/{{ encodeURIComponent($('Build FHIR Bundle').item.json.claim_id) }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4368,
+        -160
+      ],
+      "id": "dd2595f2-0f2a-45f2-939b-8b5f5632a2b0",
+      "name": "HTTP Request4",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSDGoG6GrhPzX5hU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json.values;\nconst claimId = $('Build FHIR Bundle').item.json.claim_id;\n\nconst updates = [];\n\nrows.forEach((row, index) => {\n  // Skip header row (index 0) and Send row (index 1)\n  if (index < 2) return;\n  \n  // Column D (index 3) = status, Column H (index 7) = response_sent\n  if (row[3] === 'Uploaded' && (row[7] === '' || row[7] === undefined)) {\n    updates.push({\n      range: `'${claimId}'!H${index + 1}`,\n      values: [['Yes']]\n    });\n  }\n});\n\nreturn { json: { updates: updates } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4576,
+        -160
+      ],
+      "id": "48391244-8a2a-4c46-abc4-838cf292539c",
+      "name": "Code in JavaScript1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Admission Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Claude - Extract ICD Codes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude - Extract ICD Codes": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Write to GSheet - Pending Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Respond to Approval",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Mock Policy Check + NHCX Submit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock Policy Check + NHCX Submit": {
+      "main": [
+        [
+          {
+            "node": "Prepare Checklist Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Claude - Draft Query Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude - Draft Query Response": {
+      "main": [
+        [
+          {
+            "node": "Parse Query Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Query Draft": {
+      "main": [
+        [
+          {
+            "node": "Update GSheet - Claim + Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Checklist Data": {
+      "main": [
+        [
+          {
+            "node": "Create Checklist Tab",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Checklist Tab": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Document Rows": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Document Rows": {
+      "main": [
+        []
+      ]
+    },
+    "Document Send Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond to Document Send",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter Available Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Available Documents": {
+      "main": [
+        [
+          {
+            "node": "Split Documents to Fetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Documents to Fetch": {
+      "main": [
+        [
+          {
+            "node": "Fetch Drive File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Drive File": {
+      "main": [
+        [
+          {
+            "node": "Convert to Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Base64": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Documents": {
+      "main": [
+        [
+          {
+            "node": "Prepare Claude Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Claude Context": {
+      "main": [
+        [
+          {
+            "node": "Claude - Draft Document Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude - Draft Document Response": {
+      "main": [
+        [
+          {
+            "node": "Build FHIR Bundle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build FHIR Bundle": {
+      "main": [
+        [
+          {
+            "node": "Reset Action + Mark Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Action + Mark Sent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Split Document Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet1 Awaiting Docs": {
+      "main": [
+        []
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet1 Awaiting Docs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet1 Response Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request4": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a74c4e19-aeed-4359-9e4c-b78559124cce",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "496d9bbef2d0568f5c44a7c148051e08595c796a1996809127e7726b27a16a37"
+  },
+  "id": "zPftkuIzQQbdk7mX",
+  "tags": []
+}
