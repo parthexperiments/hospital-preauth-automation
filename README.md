@@ -6,7 +6,7 @@ AI-assisted pre-authorization workflow for Indian private hospitals — built wi
 
 ## Problem
 
-Insurance coordinators at private hospitals spend 2–3 hours per cashless admission on manual, fragmented work — logging into multiple TPA portals, re-entering patient data, chasing documents over WhatsApp, waiting 6+ hours for responses, and drafting query replies from scratch. First-pass approval rates sit at 40–60%, meaning most cases require at least one rework cycle.
+Insurance coordinators at private hospitals spend 2–3 hours per cashless admission on manual, fragmented work - logging into multiple TPA portals, re-entering patient data, chasing documents over WhatsApp, waiting 6+ hours for responses, and drafting query replies from scratch. First-pass approval rates sit at 40–60%, meaning most cases require at least one rework cycle.
 
 This workflow was designed after visiting CK Birla Hospital, Jaipur and speaking with the Insurance Desk Coordinator there.
 
@@ -26,19 +26,19 @@ An end-to-end automated pre-authorization workflow that:
 
 ## Flow Overview
 
-### Phase 1 — Admission
+### Phase 1 - Admission
 ```
 Admission webhook → Claude ICD extraction → Sheet1 written (Pending Review)
 → Coordinator approves → Apps Script fires preauth-approved webhook
 ```
 
-### Phase 2 — Checklist
+### Phase 2 - Checklist
 ```
 Mock policy check → Claim ID generated → NHCX checklist tab created
 → Document rows written per procedure + TPA rules
 ```
 
-### Phase 3 — Document Send
+### Phase 3 - Document Send
 ```
 Coordinator uploads PDFs to Drive → Sets action to Send
 → Apps Script fires document-send webhook
