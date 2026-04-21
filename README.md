@@ -1,239 +1,107 @@
 # Hospital Pre-Authorization Automation
 
-AI-assisted pre-authorization workflow for Indian private hospitals — built with n8n, Claude API, Google Sheets, and Apps Script. Redesigns the manual TPA cashless claim process end to end.
+Redesigning the cashless insurance pre-authorization workflow at Indian private hospitals using AI and automation.
 
 ---
 
-## Problem
+## The Problem
 
-Insurance coordinators at private hospitals spend 2–3 hours per cashless admission on manual, fragmented work - logging into multiple TPA portals, re-entering patient data, chasing documents over WhatsApp, waiting 6+ hours for responses, and drafting query replies from scratch. First-pass approval rates sit at 40–60%, meaning most cases require at least one rework cycle.
+Every day, thousands of patients arrive at private hospital insurance desks hoping to use their health insurance for cashless treatment. What should be a smooth process is instead a broken, manual nightmare — for the coordinator, and for the patient.
 
-This workflow was designed after visiting CK Birla Hospital, Jaipur and speaking with the Insurance Desk Coordinator there.
+The coordinator logs into a different portal for each TPA, copies the same patient data multiple times across different forms, chases the lab and radiology department over WhatsApp for reports, submits everything via email or portal, and then waits. Six hours on average. No real-time visibility. No alerts. Just periodically checking an inbox.
 
----
+When the TPA responds — and it is usually with a query asking for more documents or clinical detail — the coordinator reads it, walks to the doctor, gets clarification, drafts a response from scratch, and starts again. Each query cycle adds 4 to 24 hours to the process.
 
-## What This Builds
+In emergency cases, the family signs a liability form committing to pay the full bill if the TPA later denies the claim. They sit in a waiting room not knowing if they owe two lakh rupees or nothing.
 
-An end-to-end automated pre-authorization workflow that:
+The result: a first-pass approval rate of 40 to 60 percent. The majority of submissions require at least one rework cycle. Coordinators spend 2 to 3 hours per case on work that is almost entirely copy-paste and chasing.
 
-- Extracts ICD-10 codes from free-text clinical notes using Claude
-- Generates a per-patient document checklist based on procedure and TPA
-- Tracks document uploads via Google Drive
-- Drafts TPA query responses using Claude with attached documents listed
-- Updates a Google Sheet as the coordinator interface throughout
+**Why this problem can be solved now:**
+
+Three things have converged to make this tractable in a way that wasn't possible before. NHCX — the National Health Claims Exchange — is now live as a unified API layer connecting hospitals to all 34+ insurers and TPAs in India. IRDAI has mandated a one-hour response time for pre-auth queries, creating regulatory pressure on TPAs to move faster. And large language models can now reliably extract structured medical codes from free-text clinical notes — the single hardest step to automate in this workflow. Together, these three create a window to rebuild the entire process.
 
 ---
 
-## Flow Overview
+## What We Built
 
-### Phase 1 - Admission
-```
-Admission webhook → Claude ICD extraction → Sheet1 written (Pending Review)
-→ Coordinator approves → Apps Script fires preauth-approved webhook
-```
+A working prototype of the pre-authorization workflow built on n8n, demonstrating the full logical flow from admission to TPA response.
 
-### Phase 2 - Checklist
-```
-Mock policy check → Claim ID generated → NHCX checklist tab created
-→ Document rows written per procedure + TPA rules
-```
+**Tools used:** n8n cloud · Claude Haiku (Anthropic API) · Google Sheets · Google Drive · Apps Script
 
-### Phase 3 - Document Send
-```
-Coordinator uploads PDFs to Drive → Sets action to Send
-→ Apps Script fires document-send webhook
-→ Drive files fetched → Claude drafts TPA response
-→ Sheets updated: Response Sent, action reset
-```
+### How the prototype works
 
----
+**Phase 1 — Admission and ICD extraction**
 
-## Diagrams
+A webhook trigger simulates an admission event from the HMS, receiving a patient payload with free-text diagnosis and procedure notes. Claude reads the clinical text and returns structured ICD-10 diagnosis codes, CPT procedure codes, and a clinical justification summary. The extracted data is written to a Google Sheet with status set to Pending Review. The coordinator reviews the ICD codes in the sheet and changes status to Approved. An Apps Script trigger detects this edit and fires a webhook back to n8n.
 
-### Current State
-![Current state flow](diagrams/current-state-flow.png)
+**Phase 2 — Checklist and document collection**
 
-### Redesigned Flow
-![Redesigned flow](diagrams/redesigned-flow.png)
+n8n runs a mock policy check and generates a claim ID. It then creates a new tab in the Google Sheet named after the claim ID — one isolated checklist per patient. The document checklist is written to this tab based on the procedure and TPA, with each required document listed along with its upload status. The coordinator uploads PDFs to a Google Drive folder and pastes the links into the checklist.
 
-### n8n Prototype
-![n8n prototype](diagrams/n8n-prototype-flow.png)
+**Phase 3 — Document send and TPA response**
 
----
+When the coordinator changes the action cell to Send, Apps Script batches all uploaded documents and fires a second webhook. n8n fetches each file from Drive, extracts the binary data, and passes the full case context to Claude. Claude drafts a professional response to the TPA query, listing the attached documents by name and flagging any pending documents as to follow shortly. The Google Sheet is updated with the draft response and response sent status. The action cell resets to prevent double submission.
 
-## Tech Stack
-
-| Layer | Tool |
-|---|---|
-| Workflow automation | n8n cloud |
-| AI — ICD extraction + query drafts | Claude Haiku (Anthropic API) |
-| Coordinator interface | Google Sheets |
-| Document storage | Google Drive |
-| Event trigger | Google Apps Script |
-| HMS data (mocked) | n8n webhook payload |
-| NHCX API (mocked) | Hardcoded JSON responses |
-
----
-
-## Repo Structure
-
-```
-hospital-preauth-automation/
-├── README.md
-├── workflows/
-│   ├── preauth-main-workflow.json      # Phase 1 + 2: admission to checklist
-│   └── preauth-document-flow.json      # Phase 3: document send to response
-└── diagrams/
-    ├── current-state-flow.png
-    ├── redesigned-flow.png
-    └── n8n-prototype-flow.png
-```
-
----
-
-## Setup
-
-### Prerequisites
-- n8n cloud account
-- Anthropic API key
-- Google account with Sheets and Drive access
-
-### Steps
-
-1. Import both JSON files from `workflows/` into n8n
-2. Set your Anthropic API key in both Claude nodes
-3. Connect your Google Sheets and Google Drive credentials in n8n
-4. Create a Google Sheet with these columns in Sheet1:
-   ```
-   patient_name | age | policy_number | tpa | procedure_raw | diagnosis_raw |
-   icd_code | procedure_code | clinical_justification | status | claim_id |
-   tpa_response | draft_response
-   ```
-5. Update the Sheet ID in all Google Sheets nodes to your sheet's ID
-6. Add the Apps Script code to your sheet (Extensions → Apps Script) — see below
-7. Activate both workflows in n8n
-8. Test by sending a POST to your `preauth-trigger` webhook URL
-
-### Apps Script
-
-Paste this into your Google Sheet's Apps Script editor and set the trigger to `onEdit → From spreadsheet → On edit`:
-
-```javascript
-function onEdit(e) {
-  handleApproval(e);
-  handleDocumentSend(e);
-}
-
-function handleApproval(e) {
-  const sheet = e.source.getActiveSheet();
-  const range = e.range;
-  if (sheet.getName() !== 'Sheet1') return;
-  if (range.getColumn() !== 10) return;
-  if (range.getValue() !== 'Approved') return;
-
-  const row = range.getRow();
-  const data = sheet.getRange(row, 1, 1, 13).getValues()[0];
-
-  const payload = {
-    row_number: row,
-    patient_name: data[0], age: data[1], policy_number: data[2],
-    tpa: data[3], procedure_raw: data[4], diagnosis_raw: data[5],
-    icd_code: data[6], procedure_code: data[7], clinical_justification: data[8],
-    status: data[9], claim_id: data[10], tpa_response: data[11], draft_response: data[12]
-  };
-
-  UrlFetchApp.fetch('YOUR_N8N_URL/webhook/preauth-approved', {
-    method: 'POST', contentType: 'application/json',
-    payload: JSON.stringify(payload), muteHttpExceptions: true
-  });
-}
-
-function handleDocumentSend(e) {
-  const sheet = e.source.getActiveSheet();
-  const range = e.range;
-  const sheetName = sheet.getName();
-  if (!sheetName.startsWith('NHCX')) return;
-  if (range.getColumn() !== 6) return;
-  if (range.getValue() !== 'Send') return;
-
-  const row = range.getRow();
-  const claimId = sheet.getRange(row, 1).getValue();
-  const lastRow = sheet.getLastRow();
-  const allData = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
-
-  const documents = allData
-    .filter(r => r[0] === claimId && r[3] === 'Uploaded' && r[4] !== '' && r[8] === '')
-    .map(r => ({
-      claim_id: r[0], patient_name: r[1], document_name: r[2],
-      status: r[3], drive_link: r[4],
-      file_id: r[4].match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1] || '',
-      response_sent: r[8]
-    }));
-
-  const mainSheet = e.source.getSheetByName('Sheet1');
-  const mainData = mainSheet.getDataRange().getValues();
-  const claimRow = mainData.find(r => r[10] === claimId);
-
-  const payload = {
-    claim_id: claimId,
-    patient_name: claimRow?.[0] || '',
-    tpa: claimRow?.[3] || '',
-    diagnosis_raw: claimRow?.[5] || '',
-    procedure_raw: claimRow?.[4] || '',
-    icd_code: claimRow?.[6] || '',
-    clinical_justification: claimRow?.[8] || '',
-    tpa_query: claimRow?.[11] || '',
-    documents: documents
-  };
-
-  UrlFetchApp.fetch('YOUR_N8N_URL/webhook/document-send', {
-    method: 'POST', contentType: 'application/json',
-    payload: JSON.stringify(payload), muteHttpExceptions: true
-  });
-}
-```
-
-Replace `YOUR_N8N_URL` with your n8n instance URL.
-
-### Test Payload
-
-Send this POST to `YOUR_N8N_URL/webhook/preauth-trigger` to test:
-
-```json
-{
-  "patient_name": "Rajesh Sharma",
-  "age": 54,
-  "policy_number": "SH-123456",
-  "tpa": "Star Health",
-  "procedure_raw": "Coronary Angiography",
-  "diagnosis_raw": "Patient presented with chest pain, history of hypertension and diabetes, ECG showing ST changes, planned for coronary angiography"
-}
-```
-
----
-
-## What's Mocked vs Real
+**What is real vs mocked:**
 
 | Component | Status |
 |---|---|
-| Claude ICD extraction | Real API call |
-| Claude query response drafting | Real API call |
-| Google Sheets read/write | Real |
-| Google Drive file fetch | Real |
+| Claude ICD extraction | Live API call |
+| Claude query response drafting | Live API call |
+| Google Sheets and Drive | Live |
 | HMS data | Mocked as webhook payload |
-| NHCX policy check | Mocked — hardcoded response |
-| NHCX claim submission | Mocked — random claim ID generated |
-| TPA query response | Hardcoded for demo |
-
-In production, Mirth Connect would translate HL7 v2 HMS messages into FHIR bundles, and NHCX APIs would handle eligibility checks and claim submission.
+| NHCX API | Mocked — hardcoded responses |
+| TPA query | Hardcoded for demo |
 
 ---
 
-## Target Impact
+## The Full Vision
 
-| Metric | Today | With automation |
+The prototype demonstrates the workflow logic. The production version would connect real systems at each layer.
+
+### Data layer — HMS to FHIR
+
+Hospital HMS systems emit patient data as HL7 v2 messages. Mirth Connect sits between the HMS and the workflow engine, translating these messages into FHIR-compliant bundles — structured JSON containing patient demographics, admission details, diagnosis as free text, and insurance policy information. This is the integration layer that makes the rest of the automation possible without requiring hospitals to replace their existing HMS.
+
+### Intelligence layer — Claude
+
+Claude handles the two steps in the workflow where unstructured text needs to become structured action. First, extracting ICD-10 and CPT codes from the doctor's clinical notes — replacing the most error-prone manual step with a reviewed AI suggestion. Second, drafting TPA query responses based on case context, attached documents, and the specific query text — compressing a 4 to 24 hour cycle into 10 to 15 minutes. A human review checkpoint sits before both outputs leave the system.
+
+### Submission layer — NHCX
+
+Instead of logging into a different portal for each TPA, the system makes a single API call to NHCX. The complete FHIR bundle — patient data, clinical codes, and all supporting documents base64-encoded as DocumentReference resources — travels as one structured payload. NHCX routes it to the correct TPA. Status updates arrive via webhook rather than inbox polling. The coordinator gets a push notification the moment the TPA responds rather than discovering it during a manual check.
+
+### Document layer — LIS and RIS integration
+
+In production, lab reports are pulled directly from the LIS and radiology reports from the RIS when they are ready, rather than requiring the coordinator to chase departments. For hospitals where these integrations are not yet in place, the system falls back to the manual upload flow demonstrated in the prototype. The coordinator experience is identical — the automation simply removes the manual steps progressively as integrations are established.
+
+### Learning layer — query prediction
+
+Every submission outcome is logged: which TPA, which procedure, which documents were submitted, whether the submission was queried, and what was asked for. Over time this builds a pattern layer. Before submission, the system flags which additional documents a specific TPA is likely to request for a specific procedure based on historical data — pre-empting queries before they happen. This is the mechanism that pushes first-pass approval rates toward 85 percent.
+
+---
+
+## Expected Impact
+
+| Metric | Today | Target |
 |---|---|---|
 | First-pass approval rate | 40–60% | 85%+ |
 | Coordinator time per case | 2–3 hours | 25–35 minutes |
 | Query response turnaround | 4–24 hours | 10–15 minutes |
-| TPA portals to manage | One per TPA | Single workflow |
+| TPA portals to manage | One per TPA | Single unified flow |
+
+---
+
+## Repository
+
+```
+## Repository
+
+| File | Description |
+|---|---|
+| `n8n-workflow.json` | Full n8n workflow JSON — import directly into n8n |
+| `Current Flow.png` | Current manual pre-authorization flow |
+| `proposed flow.png` | Redesigned AI-assisted flow |
+| `mock n8n flow.png` | n8n prototype workflow diagram |
+| `n8n flow.png` | n8n canvas screenshot |
+```
