@@ -4,6 +4,7 @@ Redesigning the cashless insurance pre-authorization workflow at Indian private 
 ## Demo
 
 [![Watch the demo](https://img.shields.io/badge/Loom-Watch%20Demo-orange)](https://www.loom.com/share/d274937a74ee444bbe21ea9efe74014c)
+**Assignment writeup:** [Read the full document](https://docs.google.com/document/d/1OKAvxzBNgOzvMJcG-ldG1E8Cpe0jjL74hXunomw17Kg/edit?tab=t.0)
 
 ---
 
