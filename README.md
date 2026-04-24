@@ -1,6 +1,9 @@
 # Hospital Pre-Authorization Automation
 
 Redesigning the cashless insurance pre-authorization workflow at Indian private hospitals using AI and automation.
+## Demo
+
+[![Watch the demo](https://img.shields.io/badge/Loom-Watch%20Demo-orange)](https://www.loom.com/share/d274937a74ee444bbe21ea9efe74014c)
 
 ---
 
